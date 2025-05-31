@@ -62,7 +62,7 @@ sections = {
         return wpm_tracker.get_wpm_display()
       end,
       cond = function()
-        local wpm_tracker = require("wmp-tracker")
+        local wpm_tracker = require("wpm-tracker")
         return wpm_tracker.get_current_wpm() > 0
       end,
       color = { fg = "#3EFFDC" },
