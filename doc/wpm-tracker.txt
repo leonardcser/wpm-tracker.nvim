@@ -1,0 +1,199 @@
+*wpm-tracker.txt*	For Neovim >= 0.7.0	Last change: 2024 January 15
+
+WPM TRACKER                                                        *wpm-tracker*
+
+A comprehensive typing speed tracker plugin that monitors both manual typing
+and AI-assisted coding productivity in Neovim.
+
+==============================================================================
+CONTENTS                                                *wpm-tracker-contents*
+
+1. Introduction ...................... |wpm-tracker-introduction|
+2. Setup ............................. |wpm-tracker-setup|
+3. Configuration ..................... |wpm-tracker-configuration|
+4. Public API ........................ |wpm-tracker-api|
+5. Commands .......................... |wpm-tracker-commands|
+6. Lualine Integration ............... |wpm-tracker-lualine|
+7. Examples .......................... |wpm-tracker-examples|
+
+==============================================================================
+1. INTRODUCTION                                     *wpm-tracker-introduction*
+
+WPM Tracker provides dual WPM tracking for both manual typing and AI-assisted
+coding. It distinguishes between pure keystrokes and completions, providing
+separate metrics for manual typing speed vs total productivity including
+AI assistance.
+
+Features:
+• Dual WPM tracking (manual vs assisted)
+• Live updates in lualine while typing
+• Multi-instance synchronization
+• CSV logging for data analysis
+• Smart detection of manual vs completion text
+• Memory efficient history loading
+
+==============================================================================
+2. SETUP                                                 *wpm-tracker-setup*
+
+Basic setup with lazy.nvim: >lua
+    {
+      "leonardcser/wpm-tracker.nvim",
+      config = function()
+        require("wpm-tracker").setup()
+      end,
+    }
+<
+
+==============================================================================
+3. CONFIGURATION                                 *wpm-tracker-configuration*
+
+Setup function signature: >lua
+    require("wpm-tracker").setup({
+      log_file = vim.fn.stdpath("data") .. "/wpm-tracker.csv",
+      average_window = 10,
+      min_session_length = 5,
+      update_interval = 1000,
+    })
+<
+
+Configuration options:                        *wpm-tracker-config-options*
+
+`log_file` (string)                                  *wpm-tracker-log-file*
+    Path to CSV log file for session data.
+    Default: `vim.fn.stdpath("data") .. "/wpm-tracker.csv"`
+
+`average_window` (number)                      *wpm-tracker-average-window*
+    Number of recent sessions to include in rolling averages.
+    Default: `10`
+
+`min_session_length` (number)              *wpm-tracker-min-session-length*
+    Minimum session duration in seconds to record.
+    Default: `5`
+
+`update_interval` (number)                    *wpm-tracker-update-interval*
+    Frequency of lualine updates in milliseconds.
+    Default: `1000`
+
+==============================================================================
+4. PUBLIC API                                             *wpm-tracker-api*
+
+                                              *wpm-tracker.get_current_wpm()*
+wpm-tracker.get_current_wpm()
+    Returns the current assisted WPM (includes AI completions).
+    
+    Return: ~
+        (number) Current assisted WPM
+
+                                        *wpm-tracker.get_current_manual_wpm()*
+wpm-tracker.get_current_manual_wpm()
+    Returns the current manual WPM (keystrokes only).
+    
+    Return: ~
+        (number) Current manual WPM
+
+                                      *wpm-tracker.get_current_assisted_wpm()*
+wpm-tracker.get_current_assisted_wpm()
+    Returns the current assisted WPM (all text insertions).
+    
+    Return: ~
+        (number) Current assisted WPM
+
+                                             *wpm-tracker.get_wpm_display()*
+wpm-tracker.get_wpm_display()
+    Returns a formatted string for display in statusline.
+    
+    Return: ~
+        (string) Formatted WPM display, e.g., "⚡120 wpm"
+
+                                         *wpm-tracker.is_currently_tracking()*
+wpm-tracker.is_currently_tracking()
+    Returns whether WPM tracking is currently active.
+    
+    Return: ~
+        (boolean) True if currently tracking typing in insert mode
+
+                                                  *wpm-tracker.get_stats()*
+wpm-tracker.get_stats()
+    Returns detailed statistics about current session and history.
+    
+    Return: ~
+        (table) Statistics table with fields:
+        • `current_avg_manual` (number): Rolling average manual WPM
+        • `current_avg_assisted` (number): Rolling average assisted WPM
+        • `current_session_manual` (number): Current session manual WPM
+        • `current_session_assisted` (number): Current session assisted WPM
+        • `is_tracking` (boolean): Whether currently tracking
+        • `manual_history_size` (number): Number of manual sessions in history
+        • `assisted_history_size` (number): Number of assisted sessions in history
+        • `manual_chars` (number): Manual characters typed this session
+        • `total_chars` (number): Total characters inserted this session
+
+==============================================================================
+5. COMMANDS                                           *wpm-tracker-commands*
+
+                                                              *:WPMStats*
+:WPMStats
+    Display detailed WPM statistics in the command area.
+    Shows current session and average WPM for both manual and assisted typing.
+
+                                                                *:WPMLog*
+:WPMLog
+    Open the CSV log file in a new buffer for viewing or analysis.
+
+==============================================================================
+6. LUALINE INTEGRATION                                 *wpm-tracker-lualine*
+
+Add WPM display to your lualine configuration: >lua
+    require('lualine').setup {
+      sections = {
+        lualine_x = {
+          {
+            function()
+              return require("wpm-tracker").get_wpm_display()
+            end,
+            cond = function()
+              return require("wpm-tracker").get_current_wpm() > 0
+            end,
+            color = { fg = "#3EFFDC" },
+          },
+          -- ... other components
+        },
+      },
+    }
+<
+
+==============================================================================
+7. EXAMPLES                                           *wpm-tracker-examples*
+
+Basic setup with keymaps: >lua
+    require("wpm-tracker").setup({
+      average_window = 15,
+      min_session_length = 10,
+    })
+    
+    vim.keymap.set("n", "<leader>ws", "<cmd>WPMStats<cr>", 
+      { desc = "Show WPM statistics" })
+    vim.keymap.set("n", "<leader>wl", "<cmd>WPMLog<cr>", 
+      { desc = "Open WPM log file" })
+<
+
+Getting current WPM in custom statusline: >lua
+    local function my_wpm_component()
+      local wpm_tracker = require("wpm-tracker")
+      local wpm = wpm_tracker.get_current_wpm()
+      if wpm > 0 then
+        return string.format("WPM: %d", wpm)
+      end
+      return ""
+    end
+<
+
+Checking detailed statistics: >lua
+    local stats = require("wpm-tracker").get_stats()
+    print("Manual WPM:", stats.current_session_manual)
+    print("Assisted WPM:", stats.current_session_assisted)
+    print("Is tracking:", stats.is_tracking)
+<
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl: 

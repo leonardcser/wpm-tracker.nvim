@@ -82,6 +82,18 @@ sections = {
 - `:WPMStats` - Show detailed statistics
 - `:WPMLog` - Open CSV log file
 
+## 📚 Documentation
+
+For detailed API documentation, configuration options, and examples, see the
+built-in help:
+
+```vim
+:help wpm-tracker
+```
+
+The help file documents all public API functions that can be used for custom
+integrations and advanced usage.
+
 ## 📁 CSV Format
 
 ```csv
