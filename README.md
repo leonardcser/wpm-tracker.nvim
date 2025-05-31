@@ -32,6 +32,7 @@ completions/AI-assisted coding.
     -- Optional keymaps
     vim.keymap.set("n", "<leader>ws", "<cmd>WPMStats<cr>", { desc = "Show WPM statistics" })
     vim.keymap.set("n", "<leader>wl", "<cmd>WPMLog<cr>", { desc = "Open WPM log file" })
+    vim.keymap.set("n", "<leader>wc", "<cmd>WPMClear<cr>", { desc = "Clear WPM history" })
   end,
 }
 ```
@@ -89,6 +90,7 @@ lualine.
 
 - `:WPMStats` - Show detailed statistics
 - `:WPMLog` - Open your WPM log file
+- `:WPMClear` - Clear all WPM history and log file
 
 ## How It Works
 

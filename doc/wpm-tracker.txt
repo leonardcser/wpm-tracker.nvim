@@ -126,6 +126,12 @@ wpm-tracker.get_stats()
         • `manual_chars` (number): Manual characters typed this session
         • `total_chars` (number): Total characters inserted this session
 
+                                               *wpm-tracker.clear_history()*
+wpm-tracker.clear_history()
+    Clear all WPM history and delete the contents of the CSV log file.
+    This will reset all in-memory statistics and remove all historical data.
+    If currently tracking, the session will be stopped first.
+
 ==============================================================================
 5. COMMANDS                                           *wpm-tracker-commands*
 
@@ -137,6 +143,11 @@ wpm-tracker.get_stats()
                                                                 *:WPMLog*
 :WPMLog
     Open the CSV log file in a new buffer for viewing or analysis.
+
+                                                              *:WPMClear*
+:WPMClear
+    Clear all WPM history and delete the contents of the CSV log file.
+    This will reset all statistics and remove all historical data.
 
 ==============================================================================
 6. LUALINE INTEGRATION                                 *wpm-tracker-lualine*
@@ -173,6 +184,8 @@ Basic setup with keymaps: >lua
       { desc = "Show WPM statistics" })
     vim.keymap.set("n", "<leader>wl", "<cmd>WPMLog<cr>", 
       { desc = "Open WPM log file" })
+    vim.keymap.set("n", "<leader>wc", "<cmd>WPMClear<cr>", 
+      { desc = "Clear WPM history" })
 <
 
 Getting current WPM in custom statusline: >lua
@@ -191,6 +204,11 @@ Checking detailed statistics: >lua
     print("Manual WPM:", stats.current_session_manual)
     print("Assisted WPM:", stats.current_session_assisted)
     print("Is tracking:", stats.is_tracking)
+<
+
+Clearing history programmatically: >lua
+    -- Clear all WPM history and reset statistics
+    require("wpm-tracker").clear_history()
 <
 
 ==============================================================================

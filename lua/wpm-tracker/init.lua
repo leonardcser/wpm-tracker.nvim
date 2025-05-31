@@ -493,4 +493,38 @@ vim.api.nvim_create_user_command("WPMLog", function()
   vim.cmd("edit " .. config.log_file)
 end, { desc = "Open WPM log file" })
 
+vim.api.nvim_create_user_command("WPMClear", function()
+  M.clear_history()
+end, { desc = "Clear WPM history and log file" })
+
+function M.clear_history()
+  -- Stop tracking if currently active
+  if state.is_tracking then
+    stop_tracking()
+  end
+  
+  -- Clear in-memory state
+  state.manual_wpm_history = {}
+  state.assisted_wpm_history = {}
+  state.current_avg_manual_wpm = 0
+  state.current_avg_assisted_wpm = 0
+  state.current_session_manual_wpm = 0
+  state.current_session_assisted_wpm = 0
+  state.manually_typed_chars = 0
+  state.total_inserted_chars = 0
+  state.last_file_size = 0
+  
+  -- Clear the log file
+  local file = io.open(config.log_file, "w")
+  if file then
+    file:close()
+    print("WPM history cleared successfully")
+  else
+    print("Error: Could not clear WPM log file at " .. config.log_file)
+  end
+  
+  -- Refresh status line to reflect cleared state
+  vim.cmd('redrawstatus')
+end
+
 return M 
