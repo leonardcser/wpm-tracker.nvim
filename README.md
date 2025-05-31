@@ -1,30 +1,18 @@
 # WPM Tracker for Neovim
 
-A comprehensive typing speed tracker plugin that monitors both manual typing and
-AI-assisted coding productivity in Neovim.
+Track your typing speed in Neovim with separate metrics for manual typing and
+completions/AI-assisted coding.
 
-## ✨ Features
+## Features
 
-- **📊 Dual WPM Tracking**: Separate metrics for manual typing vs AI-assisted
-  coding
-- **⚡ Live Updates**: Real-time WPM display in lualine while typing
-- **🔄 Multi-Instance Sync**: Syncs averages across all Neovim instances
-- **💾 CSV Logging**: Clean data export for analysis
-- **🎯 Smart Detection**: Distinguishes between manual keystrokes and
-  completions
-- **⚙️ Memory Efficient**: Only reads necessary data, not entire history
+- **📝 Manual WPM**: Track your pure typing speed
+- **🤖 Assisted WPM**: Include completions and AI assistance
+- **📊 Live Display**: Real-time WPM in your statusline
+- **💾 Data Export**: Save sessions to CSV for analysis
 
-## 📈 Metrics
+## Installation
 
-- **Manual WPM**: Pure typing speed (keystrokes only)
-- **Assisted WPM**: Total productivity including Supermaven, LSP completions,
-  etc.
-- **Rolling Averages**: Configurable window for historical averages
-- **Session Tracking**: Current session stats vs historical data
-
-## 🚀 Installation
-
-### With [lazy.nvim](https://github.com/folke/lazy.nvim)
+### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
@@ -48,22 +36,18 @@ AI-assisted coding productivity in Neovim.
 }
 ```
 
-## 🎨 Lualine Integration
-
-Add to your lualine configuration:
+### Add to Lualine (Optional)
 
 ```lua
--- In your lualine setup
+-- Add to your lualine configuration
 sections = {
   lualine_x = {
     {
       function()
-        local wpm_tracker = require("wpm-tracker")
-        return wpm_tracker.get_wpm_display()
+        return require("wpm-tracker").get_wpm_display()
       end,
       cond = function()
-        local wpm_tracker = require("wpm-tracker")
-        return wpm_tracker.get_current_wpm() > 0
+        return require("wpm-tracker").get_current_wpm() > 0
       end,
       color = { fg = "#3EFFDC" },
     },
@@ -72,59 +56,71 @@ sections = {
 }
 ```
 
-## 📊 Display Format
+#### Custom Display Format
 
-- **While Typing**: `⚡120 wpm` (current assisted WPM)
-- **When Idle**: Shows rolling average
+Use the `get_current_wpm()` function to get the current WPM instead of calling
+`get_wpm_display()`.
 
-## 🔧 Commands
-
-- `:WPMStats` - Show detailed statistics
-- `:WPMLog` - Open CSV log file
-
-## 📚 Documentation
-
-For detailed API documentation, configuration options, and examples, see the
-built-in help:
-
-```vim
-:help wpm-tracker
+```lua
+sections = {
+  lualine_x = {
+    {
+      function()
+        local wpm = require("wpm-tracker").get_current_wpm()
+        -- Format the WPM as you like
+        return string.format("WPM: %d", wpm)
+      end,
+      cond = function()
+        return require("wpm-tracker").get_current_wpm() > 0
+      end,
+      color = { fg = "#3EFFDC" },
+    },
+    -- ... other components
+  },
+}
 ```
 
-The help file documents all public API functions that can be used for custom
-integrations and advanced usage.
+## Usage
 
-## 📁 CSV Format
+Just start typing! The plugin automatically tracks your WPM and shows it in
+lualine.
+
+**Commands:**
+
+- `:WPMStats` - Show detailed statistics
+- `:WPMLog` - Open your WPM log file
+
+## How It Works
+
+The plugin tracks two types of WPM:
+
+- **Manual WPM**: Only counts characters you actually type
+- **Assisted WPM**: Includes completions from LSP, Supermaven, etc.
+
+This gives you insight into both your raw typing speed and your overall coding
+productivity.
+
+## CSV Export
+
+Your typing sessions are automatically saved to a CSV file:
 
 ```csv
 timestamp,manual_wpm,assisted_wpm,duration,manual_chars,total_chars
 2024-01-15 14:30:25,65,120,12.3,95,185
 ```
 
-## ⚙️ Configuration
+## Documentation
 
-```lua
-require("wpm-tracker").setup({
-  log_file = vim.fn.stdpath("data") .. "/wpm-tracker.csv",
-  average_window = 10,        -- Number of sessions for rolling average
-  min_session_length = 5,     -- Minimum seconds to record a session
-  update_interval = 1000,     -- Lualine update frequency (ms)
-})
+For advanced usage and API details:
+
+```vim
+:help wpm-tracker
 ```
 
-## 🎯 How It Works
-
-1. **Manual Tracking**: Uses `InsertCharPre` to count actual keystrokes
-2. **Assisted Tracking**: Uses `TextChangedI` to count all text insertions
-3. **Smart Detection**: Large insertions (>3 chars) are treated as completions
-4. **Multi-Instance Sync**: Updates averages when switching between Neovim
-   windows
-5. **Efficient Storage**: Only reads last N entries, not entire file
-
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please feel free to submit issues and pull requests.
 
-## 📄 License
+## License
 
 MIT License

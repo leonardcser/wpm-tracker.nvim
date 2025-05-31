@@ -27,10 +27,8 @@ AI assistance.
 Features:
 • Dual WPM tracking (manual vs assisted)
 • Live updates in lualine while typing
-• Multi-instance synchronization
 • CSV logging for data analysis
 • Smart detection of manual vs completion text
-• Memory efficient history loading
 
 ==============================================================================
 2. SETUP                                                 *wpm-tracker-setup*
