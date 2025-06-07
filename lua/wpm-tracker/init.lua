@@ -3,9 +3,10 @@ local M = {}
 -- Plugin state
 local config = {
   log_file = vim.fn.stdpath("data") .. "/wpm-tracker.csv",
-  average_window = 10,
-  min_session_length = 5,
-  update_interval = 1000,
+  average_window = 10, -- Number of entries to average over
+  min_session_length = 5, -- Only log sessions longer than 5 seconds
+  update_interval = 1000, -- Update status line every 1 second
+  idle_timeout = 5, -- Stop tracking after 5 seconds of inactivity in insert mode
 }
 
 local state = {
@@ -20,6 +21,8 @@ local state = {
   current_session_assisted_wpm = 0,
   is_tracking = false,
   update_timer = nil,
+  idle_timer = nil,
+  last_activity_time = nil,
   last_buffer_size = 0,
   last_file_size = 0,
   last_history_reload = 0,
@@ -288,6 +291,45 @@ local function stop_update_timer()
   end
 end
 
+local function start_idle_timer()
+  if state.idle_timer then return end
+  
+  state.idle_timer = vim.loop.new_timer()
+  state.idle_timer:start(config.idle_timeout * 1000, 0, vim.schedule_wrap(function()
+    -- Check if we've been idle for too long
+    if state.is_tracking and state.last_activity_time then
+      local current_time = get_timestamp()
+      local idle_time = current_time - state.last_activity_time
+      
+      -- If idle timeout exceeded and no meaningful activity, stop tracking
+      if idle_time >= config.idle_timeout and state.manually_typed_chars == 0 and state.total_inserted_chars == 0 then
+        stop_tracking()
+      end
+    end
+    
+    -- Clean up timer
+    if state.idle_timer then
+      state.idle_timer:stop()
+      state.idle_timer:close()
+      state.idle_timer = nil
+    end
+  end))
+end
+
+local function stop_idle_timer()
+  if state.idle_timer then
+    state.idle_timer:stop()
+    state.idle_timer:close()
+    state.idle_timer = nil
+  end
+end
+
+local function reset_idle_timer()
+  state.last_activity_time = get_timestamp()
+  stop_idle_timer()
+  start_idle_timer()
+end
+
 local function get_buffer_size()
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
   local total = 0
@@ -309,6 +351,10 @@ local function start_tracking()
   
   -- Initialize buffer size tracking
   state.last_buffer_size = get_buffer_size()
+  
+  -- Start idle timer to handle inactivity
+  state.last_activity_time = get_timestamp()
+  start_idle_timer()
   
   start_update_timer()
 end
@@ -334,12 +380,15 @@ local function stop_tracking()
   state.current_session_manual_wpm = 0
   state.current_session_assisted_wpm = 0
   state.last_buffer_size = 0
+  state.last_activity_time = nil
   stop_update_timer()
+  stop_idle_timer()
 end
 
 local function on_char_typed()
   if state.is_tracking then
     state.manually_typed_chars = state.manually_typed_chars + 1
+    reset_idle_timer()
   end
 end
 
@@ -353,6 +402,7 @@ local function on_text_changed()
   if size_diff > 0 then
     -- Track all insertions for assisted WPM (includes completions)
     state.total_inserted_chars = state.total_inserted_chars + size_diff
+    reset_idle_timer()
   end
   
   state.last_buffer_size = current_buffer_size
@@ -392,6 +442,7 @@ local function setup_autocmds()
     callback = function()
       stop_tracking()
       stop_update_timer()
+      stop_idle_timer()
     end,
   })
   

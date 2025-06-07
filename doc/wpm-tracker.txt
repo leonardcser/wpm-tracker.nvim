@@ -51,6 +51,7 @@ Setup function signature: >lua
       average_window = 10,
       min_session_length = 5,
       update_interval = 1000,
+      idle_timeout = 5,
     })
 <
 
@@ -71,6 +72,12 @@ Configuration options:                        *wpm-tracker-config-options*
 `update_interval` (number)                    *wpm-tracker-update-interval*
     Frequency of lualine updates in milliseconds.
     Default: `1000`
+
+`idle_timeout` (number)                          *wpm-tracker-idle-timeout*
+    Stop tracking after this many seconds of inactivity in insert mode.
+    Prevents empty sessions from being recorded when entering insert mode
+    but not actually typing.
+    Default: `5`
 
 ==============================================================================
 4. PUBLIC API                                             *wpm-tracker-api*
@@ -178,6 +185,7 @@ Basic setup with keymaps: >lua
     require("wpm-tracker").setup({
       average_window = 15,
       min_session_length = 10,
+      idle_timeout = 8,
     })
     
     vim.keymap.set("n", "<leader>ws", "<cmd>WPMStats<cr>", 

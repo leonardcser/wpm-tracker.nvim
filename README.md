@@ -27,6 +27,8 @@ completions/AI-assisted coding.
       min_session_length = 5,
       -- Update interval for lualine (milliseconds)
       update_interval = 1000,
+      -- Stop tracking after inactivity (seconds)
+      idle_timeout = 5,
     })
 
     -- Optional keymaps
@@ -98,6 +100,10 @@ The plugin tracks two types of WPM:
 
 - **Manual WPM**: Only counts characters you actually type
 - **Assisted WPM**: Includes completions from LSP, Supermaven, etc.
+
+The plugin automatically stops tracking if you enter insert mode but don't type
+anything within the configured idle timeout period, preventing empty sessions
+from being recorded.
 
 This gives you insight into both your raw typing speed and your overall coding
 productivity.
