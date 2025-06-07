@@ -23,12 +23,12 @@ completions/AI-assisted coding.
       log_file = vim.fn.stdpath("data") .. "/wpm-tracker.csv",
       -- Rolling average window size
       average_window = 10,
-      -- Minimum session length to record (seconds)
-      min_session_length = 5,
+      -- Minimum session length to record (milliseconds)
+      min_session_length = 5000,
       -- Update interval for lualine (milliseconds)
       update_interval = 1000,
-      -- Stop tracking after inactivity (seconds)
-      idle_timeout = 5,
+      -- Stop tracking after inactivity (milliseconds)
+      idle_timeout = 5000,
     })
 
     -- Optional keymaps
@@ -102,8 +102,8 @@ The plugin tracks two types of WPM:
 - **Assisted WPM**: Includes completions from LSP, Supermaven, etc.
 
 The plugin automatically stops tracking if you enter insert mode but don't type
-anything within the configured idle timeout period, preventing empty sessions
-from being recorded.
+anything within the configured idle timeout period (default 5 seconds),
+preventing empty sessions from being recorded.
 
 This gives you insight into both your raw typing speed and your overall coding
 productivity.

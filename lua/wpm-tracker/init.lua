@@ -4,9 +4,9 @@ local M = {}
 local config = {
   log_file = vim.fn.stdpath("data") .. "/wpm-tracker.csv",
   average_window = 10, -- Number of entries to average over
-  min_session_length = 5, -- Only log sessions longer than 5 seconds
-  update_interval = 1000, -- Update status line every 1 second
-  idle_timeout = 5, -- Stop tracking after 5 seconds of inactivity in insert mode
+  min_session_length = 5000, -- Only log sessions longer than 5 seconds (in milliseconds)
+  update_interval = 1000, -- Update status line every 1 second (in milliseconds)
+  idle_timeout = 5000, -- Stop tracking after 5 seconds of inactivity in insert mode (in milliseconds)
 }
 
 local state = {
@@ -264,6 +264,14 @@ local function load_history()
   state.last_history_reload = get_timestamp()
 end
 
+local function stop_update_timer()
+  if state.update_timer then
+    state.update_timer:stop()
+    state.update_timer:close()
+    state.update_timer = nil
+  end
+end
+
 local function start_update_timer()
   if state.update_timer then return end
   
@@ -283,26 +291,61 @@ local function start_update_timer()
   end))
 end
 
-local function stop_update_timer()
-  if state.update_timer then
-    state.update_timer:stop()
-    state.update_timer:close()
-    state.update_timer = nil
+local function get_buffer_size()
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local total = 0
+  for _, line in ipairs(lines) do
+    total = total + #line
   end
+  return total
+end
+
+local function stop_idle_timer()
+  if state.idle_timer then
+    state.idle_timer:stop()
+    state.idle_timer:close()
+    state.idle_timer = nil
+  end
+end
+
+local function stop_tracking()
+  if not state.is_tracking or not state.insert_start_time then return end
+  
+  local end_time = get_timestamp()
+  local duration = end_time - state.insert_start_time
+  
+  -- Only record sessions longer than minimum duration
+  if duration >= (config.min_session_length / 1000) and (state.manually_typed_chars > 0 or state.total_inserted_chars > 0) then
+    local manual_wpm = calculate_wpm(state.manually_typed_chars, duration)
+    local assisted_wpm = calculate_wpm(state.total_inserted_chars, duration)
+    update_rolling_averages(manual_wpm, assisted_wpm)
+    log_session(manual_wpm, assisted_wpm, duration, state.manually_typed_chars, state.total_inserted_chars)
+  end
+  
+  state.is_tracking = false
+  state.insert_start_time = nil
+  state.manually_typed_chars = 0
+  state.total_inserted_chars = 0
+  state.current_session_manual_wpm = 0
+  state.current_session_assisted_wpm = 0
+  state.last_buffer_size = 0
+  state.last_activity_time = nil
+  stop_update_timer()
+  stop_idle_timer()
 end
 
 local function start_idle_timer()
   if state.idle_timer then return end
   
   state.idle_timer = vim.loop.new_timer()
-  state.idle_timer:start(config.idle_timeout * 1000, 0, vim.schedule_wrap(function()
+  state.idle_timer:start(config.idle_timeout, 0, vim.schedule_wrap(function()
     -- Check if we've been idle for too long
     if state.is_tracking and state.last_activity_time then
       local current_time = get_timestamp()
       local idle_time = current_time - state.last_activity_time
       
       -- If idle timeout exceeded and no meaningful activity, stop tracking
-      if idle_time >= config.idle_timeout and state.manually_typed_chars == 0 and state.total_inserted_chars == 0 then
+      if idle_time >= (config.idle_timeout / 1000) and state.manually_typed_chars == 0 and state.total_inserted_chars == 0 then
         stop_tracking()
       end
     end
@@ -316,27 +359,10 @@ local function start_idle_timer()
   end))
 end
 
-local function stop_idle_timer()
-  if state.idle_timer then
-    state.idle_timer:stop()
-    state.idle_timer:close()
-    state.idle_timer = nil
-  end
-end
-
 local function reset_idle_timer()
   state.last_activity_time = get_timestamp()
   stop_idle_timer()
   start_idle_timer()
-end
-
-local function get_buffer_size()
-  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  local total = 0
-  for _, line in ipairs(lines) do
-    total = total + #line
-  end
-  return total
 end
 
 local function start_tracking()
@@ -357,32 +383,6 @@ local function start_tracking()
   start_idle_timer()
   
   start_update_timer()
-end
-
-local function stop_tracking()
-  if not state.is_tracking or not state.insert_start_time then return end
-  
-  local end_time = get_timestamp()
-  local duration = end_time - state.insert_start_time
-  
-  -- Only record sessions longer than minimum duration
-  if duration >= config.min_session_length and (state.manually_typed_chars > 0 or state.total_inserted_chars > 0) then
-    local manual_wpm = calculate_wpm(state.manually_typed_chars, duration)
-    local assisted_wpm = calculate_wpm(state.total_inserted_chars, duration)
-    update_rolling_averages(manual_wpm, assisted_wpm)
-    log_session(manual_wpm, assisted_wpm, duration, state.manually_typed_chars, state.total_inserted_chars)
-  end
-  
-  state.is_tracking = false
-  state.insert_start_time = nil
-  state.manually_typed_chars = 0
-  state.total_inserted_chars = 0
-  state.current_session_manual_wpm = 0
-  state.current_session_assisted_wpm = 0
-  state.last_buffer_size = 0
-  state.last_activity_time = nil
-  stop_update_timer()
-  stop_idle_timer()
 end
 
 local function on_char_typed()
