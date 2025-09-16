@@ -155,6 +155,17 @@ wpm-tracker.clear_history()
 :WPMClear
     Clear all WPM history and delete the contents of the CSV log file.
     This will reset all statistics and remove all historical data.
+    The command will prompt for confirmation before proceeding.
+
+                                                                *:WPMPlot*
+:WPMPlot [N]
+    Display ASCII charts of your WPM data showing both manual and assisted
+    typing speeds over time. Optionally limit the display to the last N
+    data points for better readability with large datasets.
+    
+    Examples:
+        :WPMPlot          " Show all data points
+        :WPMPlot 20       " Show last 20 data points
 
 ==============================================================================
 6. LUALINE INTEGRATION                                 *wpm-tracker-lualine*
@@ -193,7 +204,9 @@ Basic setup with keymaps: >lua
     vim.keymap.set("n", "<leader>wl", "<cmd>WPMLog<cr>", 
       { desc = "Open WPM log file" })
     vim.keymap.set("n", "<leader>wc", "<cmd>WPMClear<cr>", 
-      { desc = "Clear WPM history" })
+      { desc = "Clear WPM history (with confirmation)" })
+    vim.keymap.set("n", "<leader>wp", "<cmd>WPMPlot<cr>", 
+      { desc = "Plot WPM data" })
 <
 
 Getting current WPM in custom statusline: >lua
