@@ -1,3 +1,7 @@
+-- Bit operations compatibility (Lua 5.2+ has bit32, LuaJIT has bit)
+---@diagnostic disable-next-line: undefined-global
+local bit32 = bit32 or bit or require("bit32")
+
 ---@class WPMTrackerConfig
 ---@field log_file string Path to the CSV log file
 ---@field average_window number Number of entries to average over
@@ -821,17 +825,48 @@ local function generate_ascii_chart(data_points, chart_type, max_points)
 		raw_values[#raw_values + 1] = (chart_type == "manual" and p.manual_wpm or p.assisted_wpm) or 0
 	end
 
+	-- First pass: compute statistics for outlier detection on raw values
+	local sum = 0
+	for _, v in ipairs(raw_values) do
+		sum = sum + v
+	end
+	local mean = sum / math.max(1, #raw_values)
+
+	local variance = 0
+	for _, v in ipairs(raw_values) do
+		variance = variance + (v - mean) ^ 2
+	end
+	local std_dev = math.sqrt(variance / math.max(1, #raw_values))
+
+	-- Outlier rejection: exclude values beyond ±3σ from raw data
+	local outlier_threshold_min = mean - 3 * std_dev
+	local outlier_threshold_max = mean + 3 * std_dev
+
+	-- Filter raw values to remove extreme outliers
+	local filtered_raw = {}
+	local outlier_count = 0
+	for _, v in ipairs(raw_values) do
+		if v >= outlier_threshold_min and v <= outlier_threshold_max then
+			filtered_raw[#filtered_raw + 1] = v
+		else
+			-- Replace outliers with mean to avoid gaps in the chart
+			filtered_raw[#filtered_raw + 1] = mean
+			outlier_count = outlier_count + 1
+		end
+	end
+
+	-- Compute smoothed values from filtered data
 	local smoothed_values = {}
-	local window_size = math.min(5, #raw_values)
+	local window_size = math.min(5, #filtered_raw)
 	if window_size < 1 then
 		window_size = 1
 	end
-	for i = 1, #raw_values do
+	for i = 1, #filtered_raw do
 		local s, c = 0, 0
 		local a = math.max(1, i - math.floor(window_size / 2))
-		local b = math.min(#raw_values, i + math.floor(window_size / 2))
+		local b = math.min(#filtered_raw, i + math.floor(window_size / 2))
 		for j = a, b do
-			s = s + raw_values[j]
+			s = s + filtered_raw[j]
 			c = c + 1
 		end
 		smoothed_values[i] = s / math.max(1, c)
@@ -861,43 +896,18 @@ local function generate_ascii_chart(data_points, chart_type, max_points)
 		return out
 	end
 
-	local disp_raw = resample(raw_values, width)
-	local disp_smooth = resample(smoothed_values, width)
+	-- Resample to 2x width since braille has 2 horizontal pixels per character
+	local disp_smooth = resample(smoothed_values, width * 2)
 
-	-- Statistics for scaling (use displayed smoothed series for robustness)
-	local sum = 0
+	-- Determine plot range from filtered data
+	local min_val, max_val = math.huge, -math.huge
 	for _, v in ipairs(disp_smooth) do
-		sum = sum + v
-	end
-	local mean = sum / math.max(1, #disp_smooth)
-
-	local variance = 0
-	for _, v in ipairs(disp_smooth) do
-		variance = variance + (v - mean) ^ 2
-	end
-	local std_dev = math.sqrt(variance / math.max(1, #disp_smooth))
-
-	-- Outlier rejection around mean (±2σ)
-	local min_val, max_val = mean - 2 * std_dev, mean + 2 * std_dev
-	local actual_min, actual_max = math.huge, -math.huge
-	local outlier_count = 0
-	for _, v in ipairs(disp_smooth) do
-		if v >= min_val and v <= max_val then
-			if v < actual_min then
-				actual_min = v
-			end
-			if v > actual_max then
-				actual_max = v
-			end
-		else
-			outlier_count = outlier_count + 1
+		if v < min_val then
+			min_val = v
 		end
-	end
-	if actual_min < math.huge then
-		min_val = actual_min
-	end
-	if actual_max > -math.huge then
-		max_val = actual_max
+		if v > max_val then
+			max_val = v
+		end
 	end
 	if min_val == max_val then
 		max_val = min_val + 1
@@ -946,48 +956,90 @@ local function generate_ascii_chart(data_points, chart_type, max_points)
 		return math.max(1, math.min(height, r))
 	end
 
-	-- Compute y-axis tick rows (no in-plot gridlines)
+	-- Braille character mapping: each character has 2 columns × 4 rows of dots
+	-- Braille pattern: dots 1-8 map to bits in a specific pattern
+	-- 0x2800 is the base braille character (no dots)
+	local braille_base = 0x2800
+	-- Dot positions (1-indexed for Lua):
+	-- Column 1: dots 1,2,3,7 (left column, top to bottom)
+	-- Column 2: dots 4,5,6,8 (right column, top to bottom)
+	local dot_map = {
+		{1, 2, 3, 7}, -- left column (dots for rows 1-4)
+		{4, 5, 6, 8}  -- right column (dots for rows 1-4)
+	}
+
+	-- Braille canvas: each cell can have 2×4 dots
+	-- We'll use pixel coordinates: (px, py) where px is in [1, width*2] and py is in [1, height*4]
+	local braille_width = width
+	local braille_height = height
+	local pixels = {}
+	for r = 1, braille_height * 4 do
+		pixels[r] = {}
+		for c = 1, braille_width * 2 do
+			pixels[r][c] = false
+		end
+	end
+
+	-- Helper to set a pixel in braille coordinates
+	local function set_pixel(px, py)
+		if px >= 1 and px <= braille_width * 2 and py >= 1 and py <= braille_height * 4 then
+			pixels[py][px] = true
+		end
+	end
+
+	-- Map value to pixel row (inverted: high values at top)
+	local function pixel_row_for(v)
+		local t = (v - min_val) / (max_val - min_val)
+		local py = (braille_height * 4) - math.floor(t * (braille_height * 4 - 1) + 0.5)
+		return math.max(1, math.min(braille_height * 4, py))
+	end
+
+	-- Compute y-axis tick rows (in character rows, not pixels)
 	local grid_rows = {}
 	for y = tick_min, tick_max, step do
 		local r = row_for(y)
 		grid_rows[r] = y
 	end
 
-	-- Plot smoothed series (primary)
+	-- Plot smoothed series with line drawing
 	for i = 1, #disp_smooth do
-		local col = i
-		if col > width then
-			break
-		end
-		local r = row_for(disp_smooth[i])
-		chart[r][col] = "o"
+		if i > width * 2 then break end
+		local pr = pixel_row_for(disp_smooth[i])
+		set_pixel(i, pr)
+
+		-- Draw line to previous point
 		if i > 1 then
-			local pr = row_for(disp_smooth[i - 1])
-			local a, b = math.min(r, pr), math.max(r, pr)
-			for rr = a, b do
-				if chart[rr][col] == " " then
-					chart[rr][col] = "."
+			local prev_pr = pixel_row_for(disp_smooth[i - 1])
+			local steps = math.abs(pr - prev_pr)
+			if steps > 1 then
+				local dir = (pr > prev_pr) and 1 or -1
+				for s = 1, steps - 1 do
+					set_pixel(i, prev_pr + s * dir)
 				end
 			end
 		end
 	end
 
-	-- Overlay raw series (secondary)
-	for i = 1, #disp_raw do
-		local col = i
-		if col > width then
-			break
-		end
-		local r = row_for(math.min(math.max(disp_raw[i], min_val), max_val))
-		if chart[r][col] == " " then
-			chart[r][col] = "+"
-		end
-	end
-
-	-- Convert chart to strings
+	-- Convert pixel array to braille characters
 	local chart_lines = {}
-	for i = 1, height do
-		chart_lines[i] = table.concat(chart[i])
+	for char_row = 1, braille_height do
+		local line = {}
+		for char_col = 1, braille_width do
+			local code = braille_base
+			-- Check each of the 8 dots in this character cell
+			for dot_col = 1, 2 do
+				for dot_row = 1, 4 do
+					local px = (char_col - 1) * 2 + dot_col
+					local py = (char_row - 1) * 4 + dot_row
+					if pixels[py] and pixels[py][px] then
+						local dot_num = dot_map[dot_col][dot_row]
+						code = code + bit32.lshift(1, dot_num - 1)
+					end
+				end
+			end
+			line[char_col] = vim.fn.nr2char(code)
+		end
+		chart_lines[char_row] = table.concat(line)
 	end
 
 	-- Title and legend
@@ -1003,7 +1055,6 @@ local function generate_ascii_chart(data_points, chart_type, max_points)
 		title = title .. string.format("  [%d outliers excluded]", outlier_count)
 	end
 	table.insert(result, title)
-	table.insert(result, "Legend: '+' raw, 'o' smoothed")
 	table.insert(result, "")
 
 	-- Y-axis with selective tick labels
